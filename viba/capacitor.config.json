@@ -1,0 +1,19 @@
+{
+  "appId": "guru.viba.app",
+  "appName": "VIBA",
+  "webDir": "www",
+  "server": {
+    "url": "https://www.viba.guru/?app=ios",
+    "allowNavigation": ["viba.guru", "*.viba.guru", "checkout.stripe.com", "*.stripe.com", "appleid.apple.com"],
+    "errorPath": "offline.html"
+  },
+  "ios": {
+    "contentInset": "always",
+    "limitsNavigationsToAppBoundDomains": false,
+    "backgroundColor": "#050816"
+  },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 600, "backgroundColor": "#050816", "showSpinner": false },
+    "PushNotifications": { "presentationOptions": ["badge", "sound", "alert"] }
+  }
+}
