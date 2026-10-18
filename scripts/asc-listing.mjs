@@ -11,6 +11,7 @@ async function api(method,p,body){const r=await fetch(`https://api.appstoreconne
   const t=await r.text();let j;try{j=JSON.parse(t);}catch{j={raw:t};}return {status:r.status,json:j};}
 const err=r=>JSON.stringify(r.json.errors??r.json).slice(0,600);
 let bad=0;
+const BOOLS=new Set(['gambling','lootBox','unrestrictedWebAccess','messagingAndChat','userGeneratedContent','advertising','parentalControls','ageAssurance','healthOrWellnessTopics','socialMedia']);
 const ENUMS=new Set(['alcoholTobaccoOrDrugUseOrReferences','contests','gamblingSimulated','gunsOrOtherWeapons','horrorOrFearThemes','matureOrSuggestiveThemes','medicalOrTreatmentInformation','profanityOrCrudeHumor','sexualContentGraphicAndNudity','sexualContentOrNudity','violenceCartoonOrFantasy','violenceRealistic','violenceRealisticProlongedGraphicOrSadistic']);
 async function step(name,fn){try{const m=await fn();console.log(`::notice::${name}: ${m??'ok'}`);}catch(e){bad++;console.log(`::error::${name}: ${e.message}`);}}
 const ok=(r,what)=>{if(r.status>=300)throw new Error(`${what} HTTP ${r.status} ${err(r)}`);return r;};
@@ -31,7 +32,7 @@ await step('Age rating',async()=>{
   for(const [k,v] of Object.entries(d.attributes)){
     if(k==='kidsAgeBand'||k.includes('Override')||k.includes('AgeRestriction')||k.includes('AgeRating'))continue;
     if(ENUMS.has(k))a[k]='NONE';
-    else if(typeof v==='boolean'||v===null)a[k]=false;
+    else if(BOOLS.has(k))a[k]=false;
   }
   Object.assign(a,L.ageRating??{});
   const r=await api('PATCH',`/v1/ageRatingDeclarations/${d.id}`,{data:{type:'ageRatingDeclarations',id:d.id,attributes:a}});
