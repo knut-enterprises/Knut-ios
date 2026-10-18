@@ -7,7 +7,7 @@ import os from 'node:os';
 import {execFileSync} from 'node:child_process';
 
 const {ASC_KEY_ID:kid,ASC_ISSUER_ID:iss,ASC_KEY_PATH:keyPath,RUNNER_TEMP:tmp,GITHUB_ENV:envFile}=process.env;
-const BUNDLE=process.env.BUNDLE_ID||'au.com.knut.app',APP_NAME=process.env.APP_NAME||'Knut',PASS=process.env.CACHE_PASSPHRASE||'';
+const BUNDLE=process.env.BUNDLE_ID||'au.com.knut.app',APP_NAME=process.env.APP_NAME||'Knut',PASS=(process.env.CACHE_PASSPHRASE&&process.env.CACHE_PASSPHRASE!=='null')?process.env.CACHE_PASSPHRASE:'';
 const CACHE=`${os.homedir()}/.knut-signing`;
 const fail=m=>{console.log(`::error::${String(m).slice(0,900).replace(/\n/g,' ')}`);process.exit(1);};
 const b64u=o=>Buffer.from(JSON.stringify(o)).toString('base64url');
@@ -53,9 +53,17 @@ if(PASS&&fs.existsSync(`${CACHE}/cert.json`)&&fs.existsSync(`${CACHE}/key.pem.en
       fs.copyFileSync(`${CACHE}/cert.cer`,`${dir}/cert.cer`);
       cert=g.json.data;console.log(`::notice::Reusing the cached distribution certificate ${cert.id}`);
     }else console.log(`::notice::Cached certificate no longer valid (HTTP ${g.status})`);
-  }catch(e){console.log(`::warning::Cached certificate unusable: ${e.message}`);}
+  }catch(e){console.log(`::warning::Cached certificate unusable: ${String(e.stderr||e.message).slice(0,200)}`);}
 }
 if(!cert){
+  // Certificates this pipeline made on earlier runs (no longer usable) count against Apple's limit: revoke those from the last 3 days.
+  const all=await api('GET','/v1/certificates?limit=100');
+  for(const c of all.json.data??[]){
+    const t=c.attributes.certificateType,created=new Date(c.attributes.expirationDate).getTime()-365*864e5;
+    if((t==='DISTRIBUTION'||t==='IOS_DISTRIBUTION')&&Date.now()-created<3*864e5&&Date.now()-created>-864e5){
+      const d=await api('DELETE',`/v1/certificates/${c.id}`);console.log(`::notice::Revoked stale CI certificate ${c.id} (HTTP ${d.status})`);
+    }
+  }
   sh('/usr/bin/openssl',['genrsa','-out',`${dir}/key.pem`,'2048'],{stdio:'pipe'});
   sh('/usr/bin/openssl',['req','-new','-key',`${dir}/key.pem`,'-out',`${dir}/req.csr`,'-subj','/CN=Knut CI/O=Knut/C=AU'],{stdio:'pipe'});
   const csr=fs.readFileSync(`${dir}/req.csr`,'utf8');
