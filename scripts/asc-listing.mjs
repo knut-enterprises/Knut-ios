@@ -69,7 +69,10 @@ await step('Attach newest build',async()=>{
   ok(await api('PATCH',`/v1/appStoreVersions/${ver.id}/relationships/build`,{data:{type:'builds',id:b.id}}),'attach');return `build ${b.attributes.version}`;});
 if(process.env.SUBMIT==='1')await step('Content rights',async()=>{ok(await api('PATCH',`/v1/apps/${app.id}`,{data:{type:'apps',id:app.id,attributes:{contentRightsDeclaration:'DOES_NOT_USE_THIRD_PARTY_CONTENT'}}}),'content rights');});
 if(process.env.SUBMIT==='1')await step('Submit for review',async()=>{
-  const rs=ok(await api('POST','/v1/reviewSubmissions',{data:{type:'reviewSubmissions',attributes:{platform:'IOS'},relationships:{app:{data:{type:'apps',id:app.id}}}}}),'create submission').json.data;
-  ok(await api('POST','/v1/reviewSubmissionItems',{data:{type:'reviewSubmissionItems',relationships:{reviewSubmission:{data:{type:'reviewSubmissions',id:rs.id}},appStoreVersion:{data:{type:'appStoreVersions',id:ver.id}}}}}),'add version');
+  const ex=await api('GET',`/v1/apps/${app.id}/reviewSubmissions?filter[state]=READY_FOR_REVIEW&include=items&limit=20`);
+  let rs=(ex.json.data??[])[0];
+  if(!rs)rs=ok(await api('POST','/v1/reviewSubmissions',{data:{type:'reviewSubmissions',attributes:{platform:'IOS'},relationships:{app:{data:{type:'apps',id:app.id}}}}}),'create submission').json.data;
+  const has=(ex.json.included??[]).some(i=>i.type==='reviewSubmissionItems'&&rs.relationships?.items?.data?.some(d=>d.id===i.id));
+  if(!has)ok(await api('POST','/v1/reviewSubmissionItems',{data:{type:'reviewSubmissionItems',relationships:{reviewSubmission:{data:{type:'reviewSubmissions',id:rs.id}},appStoreVersion:{data:{type:'appStoreVersions',id:ver.id}}}}}),'add version');
   const r=ok(await api('PATCH',`/v1/reviewSubmissions/${rs.id}`,{data:{type:'reviewSubmissions',id:rs.id,attributes:{submitted:true}}}),'submit');return r.json.data.attributes.state;});
 if(bad)console.log(`::warning::${bad} step(s) failed`);
