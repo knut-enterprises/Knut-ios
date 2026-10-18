@@ -9,7 +9,7 @@ function jwt(){const h=b64(JSON.stringify({alg:'ES256',kid:ASC_KEY_ID,typ:'JWT'}
   const s=crypto.sign('SHA256',Buffer.from(`${h}.${p}`),{key:fs.readFileSync(ASC_KEY_PATH),dsaEncoding:'ieee-p1363'});return `${h}.${p}.${b64(s)}`;}
 async function api(method,p,body){const r=await fetch(`https://api.appstoreconnect.apple.com${p}`,{method,headers:{authorization:`Bearer ${jwt()}`,'content-type':'application/json'},body:body?JSON.stringify(body):undefined});
   const t=await r.text();let j;try{j=JSON.parse(t);}catch{j={raw:t};}return {status:r.status,json:j};}
-const err=r=>JSON.stringify(r.json.errors??r.json).slice(0,600);
+const err=r=>JSON.stringify(r.json.errors??r.json).slice(0,2500);
 let bad=0;
 const BOOLS=new Set(['gambling','lootBox','unrestrictedWebAccess','messagingAndChat','userGeneratedContent','advertising','parentalControls','ageAssurance','healthOrWellnessTopics','socialMedia']);
 const ENUMS=new Set(['alcoholTobaccoOrDrugUseOrReferences','contests','gamblingSimulated','gunsOrOtherWeapons','horrorOrFearThemes','matureOrSuggestiveThemes','medicalOrTreatmentInformation','profanityOrCrudeHumor','sexualContentGraphicAndNudity','sexualContentOrNudity','violenceCartoonOrFantasy','violenceRealistic','violenceRealisticProlongedGraphicOrSadistic']);
@@ -67,6 +67,7 @@ await step('Attach newest build',async()=>{
   const b=r.json.data.find(x=>x.attributes.processingState==='VALID');
   if(!b)throw new Error('no processed build yet: '+r.json.data.map(x=>x.attributes.version+':'+x.attributes.processingState).join(','));
   ok(await api('PATCH',`/v1/appStoreVersions/${ver.id}/relationships/build`,{data:{type:'builds',id:b.id}}),'attach');return `build ${b.attributes.version}`;});
+if(process.env.SUBMIT==='1')await step('Content rights',async()=>{ok(await api('PATCH',`/v1/apps/${app.id}`,{data:{type:'apps',id:app.id,attributes:{contentRightsDeclaration:'DOES_NOT_USE_THIRD_PARTY_CONTENT'}}}),'content rights');});
 if(process.env.SUBMIT==='1')await step('Submit for review',async()=>{
   const rs=ok(await api('POST','/v1/reviewSubmissions',{data:{type:'reviewSubmissions',attributes:{platform:'IOS'},relationships:{app:{data:{type:'apps',id:app.id}}}}}),'create submission').json.data;
   ok(await api('POST','/v1/reviewSubmissionItems',{data:{type:'reviewSubmissionItems',relationships:{reviewSubmission:{data:{type:'reviewSubmissions',id:rs.id}},appStoreVersion:{data:{type:'appStoreVersions',id:ver.id}}}}}),'add version');
