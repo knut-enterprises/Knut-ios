@@ -62,4 +62,9 @@ await step('Price: free',async()=>{
   const free=pp.json.data.find(p=>p.attributes.customerPrice==='0.0'||p.attributes.customerPrice==='0');
   if(!free)throw new Error('no free price point');
   ok(await api('POST','/v1/appPriceSchedules',{data:{type:'appPriceSchedules',relationships:{app:{data:{type:'apps',id:app.id}},baseTerritory:{data:{type:'territories',id:'AUS'}},manualPrices:{data:[{type:'appPrices',id:'${p1}'}]}}},included:[{type:'appPrices',id:'${p1}',attributes:{startDate:null},relationships:{appPricePoint:{data:{type:'appPricePoints',id:free.id}}}}]}),'price schedule');});
+await step('Attach newest build',async()=>{
+  const r=ok(await api('GET',`/v1/builds?filter[app]=${app.id}&sort=-uploadedDate&limit=5`),'builds');
+  const b=r.json.data.find(x=>x.attributes.processingState==='VALID');
+  if(!b)throw new Error('no processed build yet: '+r.json.data.map(x=>x.attributes.version+':'+x.attributes.processingState).join(','));
+  ok(await api('PATCH',`/v1/appStoreVersions/${ver.id}/relationships/build`,{data:{type:'builds',id:b.id}}),'attach');return `build ${b.attributes.version}`;});
 if(bad)console.log(`::warning::${bad} step(s) failed`);
