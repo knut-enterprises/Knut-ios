@@ -67,4 +67,8 @@ await step('Attach newest build',async()=>{
   const b=r.json.data.find(x=>x.attributes.processingState==='VALID');
   if(!b)throw new Error('no processed build yet: '+r.json.data.map(x=>x.attributes.version+':'+x.attributes.processingState).join(','));
   ok(await api('PATCH',`/v1/appStoreVersions/${ver.id}/relationships/build`,{data:{type:'builds',id:b.id}}),'attach');return `build ${b.attributes.version}`;});
+if(process.env.SUBMIT==='1')await step('Submit for review',async()=>{
+  const rs=ok(await api('POST','/v1/reviewSubmissions',{data:{type:'reviewSubmissions',attributes:{platform:'IOS'},relationships:{app:{data:{type:'apps',id:app.id}}}}}),'create submission').json.data;
+  ok(await api('POST','/v1/reviewSubmissionItems',{data:{type:'reviewSubmissionItems',relationships:{reviewSubmission:{data:{type:'reviewSubmissions',id:rs.id}},appStoreVersion:{data:{type:'appStoreVersions',id:ver.id}}}}}),'add version');
+  const r=ok(await api('PATCH',`/v1/reviewSubmissions/${rs.id}`,{data:{type:'reviewSubmissions',id:rs.id,attributes:{submitted:true}}}),'submit');return r.json.data.attributes.state;});
 if(bad)console.log(`::warning::${bad} step(s) failed`);
