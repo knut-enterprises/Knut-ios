@@ -57,7 +57,10 @@ jobs:
             -allowProvisioningUpdates \
             -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             CURRENT_PROJECT_VERSION=$((GITHUB_RUN_NUMBER + 1)) \
-            archive
+            archive 2>&1 | tee "$RUNNER_TEMP/archive.log" || {
+              grep -E "error:|Error Domain|No (account|profile|signing)|requires|failed" "$RUNNER_TEMP/archive.log" | sort -u | head -8 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
+              exit 1
+            }
       - name: Sign and upload to App Store Connect
         run: |
           cat > "$RUNNER_TEMP/export.plist" <<PLIST
