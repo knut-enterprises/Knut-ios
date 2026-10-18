@@ -81,6 +81,8 @@ jobs:
               grep -E "error:|Error Domain|No (account|profile|signing)|requires|failed" "$RUNNER_TEMP/export.log" | sort -u | head -8 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
               exit 1
             }
+          grep -iE "upload|deliver|transporter|succeeded|bundle|version|build" "$RUNNER_TEMP/export.log" | sort -u | head -12 | while IFS= read -r l; do echo "::notice::${l:0:300}"; done
+          ls -la "$RUNNER_TEMP/export" | while IFS= read -r l; do echo "::notice::${l}"; done
       - name: Remove the key
         if: always()
         run: rm -rf "$HOME/private_keys"
