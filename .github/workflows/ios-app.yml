@@ -61,7 +61,9 @@ jobs:
               exit 1
             }
       - name: Sign and upload to App Store Connect
+        shell: bash
         run: |
+          set -o pipefail
           cat > "$RUNNER_TEMP/export.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -78,13 +80,15 @@ jobs:
             -exportOptionsPlist "$RUNNER_TEMP/export.plist" -exportPath "$RUNNER_TEMP/export" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/export.log" || {
-              grep -E "error:|Error Domain|No (account|profile|signing)|requires|failed" "$RUNNER_TEMP/export.log" | sort -u | head -8 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
+              grep -v '^\s*$' "$RUNNER_TEMP/export.log" | tail -14 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
               exit 1
             }
           grep -iE "upload|deliver|transporter|succeeded|bundle|version|build" "$RUNNER_TEMP/export.log" | sort -u | head -12 | while IFS= read -r l; do echo "::notice::${l:0:300}"; done
           ls -la "$RUNNER_TEMP/export" | while IFS= read -r l; do echo "::notice::${l}"; done
       - name: Upload to App Store Connect
+        shell: bash
         run: |
+          set -o pipefail
           IPA=$(ls "$RUNNER_TEMP"/export/*.ipa | head -1)
           echo "::notice::Uploading $IPA"
           xcrun altool --upload-app -f "$IPA" -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/upload.log" || {
