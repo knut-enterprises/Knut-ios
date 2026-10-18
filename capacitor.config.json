@@ -1,0 +1,19 @@
+{
+  "appId": "au.com.knut.app",
+  "appName": "Knut",
+  "webDir": "www",
+  "server": {
+    "url": "https://knut.com.au/?app=ios",
+    "allowNavigation": ["knut.com.au", "*.knut.com.au", "checkout.stripe.com", "*.stripe.com", "appleid.apple.com"],
+    "errorPath": "offline.html"
+  },
+  "ios": {
+    "contentInset": "always",
+    "limitsNavigationsToAppBoundDomains": false,
+    "backgroundColor": "#07182A"
+  },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 600, "backgroundColor": "#07182A", "showSpinner": false },
+    "PushNotifications": { "presentationOptions": ["badge", "sound", "alert"] }
+  }
+}

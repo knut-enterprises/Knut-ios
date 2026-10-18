@@ -1,0 +1,81 @@
+# Knut iPhone app: builds this repo on a GitHub Mac, signs it with Apple's
+# cloud-managed signing and uploads it to App Store Connect (TestFlight).
+# The App Store Connect API key is fetched from knut.com.au, which hands it
+# only to this workflow on main after checking GitHub's signed identity token.
+name: Knut iPhone app
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: ios-app
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      TEAM_ID: 5AUSX9646V
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Use the newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+      - name: Get the App Store Connect key from knut.com.au
+        run: |
+          # The website deploys from the same push, so wait for it (up to 25 min).
+          for i in $(seq 1 50); do
+            OIDC=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=knut-ios-build" | jq -r .value)
+            CODE=$(curl -sS -o creds.json -w '%{http_code}' -X POST -H "Authorization: Bearer $OIDC" https://knut.com.au/api/internal/ios-build-credentials || true)
+            [ "$CODE" = "200" ] && break
+            echo "attempt $i: HTTP $CODE"; rm -f creds.json; sleep 30
+          done
+          [ -s creds.json ] || { echo "Could not get the App Store Connect key"; exit 1; }
+          KEY_ID=$(jq -r .keyId creds.json); ISSUER=$(jq -r .issuerId creds.json)
+          mkdir -p "$HOME/private_keys"
+          jq -r .p8 creds.json > "$HOME/private_keys/AuthKey_$KEY_ID.p8"
+          rm creds.json
+          echo "ASC_KEY_ID=$KEY_ID" >> "$GITHUB_ENV"
+          echo "ASC_ISSUER_ID=$ISSUER" >> "$GITHUB_ENV"
+          echo "ASC_KEY_PATH=$HOME/private_keys/AuthKey_$KEY_ID.p8" >> "$GITHUB_ENV"
+      - name: Install the app shell
+        run: npm ci && npx cap sync ios
+      - name: Archive
+        working-directory: ios/App
+        run: |
+          set -o pipefail
+          xcodebuild -quiet -workspace App.xcworkspace -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Knut.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            CURRENT_PROJECT_VERSION=$((GITHUB_RUN_NUMBER + 1)) \
+            archive
+      - name: Sign and upload to App Store Connect
+        run: |
+          cat > "$RUNNER_TEMP/export.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Knut.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/export.plist" -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+      - name: Remove the key
+        if: always()
+        run: rm -rf "$HOME/private_keys"
