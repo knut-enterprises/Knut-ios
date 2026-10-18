@@ -5,8 +5,15 @@
 name: Knut iPhone app
 on:
   workflow_dispatch:
+    inputs:
+      app:
+        description: Which app to build
+        type: choice
+        default: knut
+        options: [knut, viba]
   push:
     branches: [main]
+    paths: ["ios/**", "www/**", "package*.json", "capacitor.config.json", "scripts/**", ".github/workflows/ios-app.yml"]
 permissions:
   contents: read
   id-token: write
@@ -24,6 +31,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Pick the app
+        run: |
+          if [ "${{ inputs.app }}" = "viba" ]; then
+            { echo "APP_DIR=viba"; echo "BUNDLE_ID=guru.viba.app"; echo "APP_NAME=VIBA"; } >> "$GITHUB_ENV"
+          else
+            { echo "APP_DIR=."; echo "BUNDLE_ID=au.com.knut.app"; echo "APP_NAME=Knut"; } >> "$GITHUB_ENV"
+          fi
       - name: Use the newest Xcode
         run: |
           XCODE=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
@@ -42,16 +56,29 @@ jobs:
           KEY_ID=$(jq -r .keyId creds.json); ISSUER=$(jq -r .issuerId creds.json)
           mkdir -p "$HOME/private_keys"
           jq -r .p8 creds.json > "$HOME/private_keys/AuthKey_$KEY_ID.p8"
+          PASS=$(jq -r .cachePassphrase creds.json); echo "::add-mask::$PASS"; echo "CACHE_PASSPHRASE=$PASS" >> "$GITHUB_ENV"
           rm creds.json
           echo "ASC_KEY_ID=$KEY_ID" >> "$GITHUB_ENV"
           echo "ASC_ISSUER_ID=$ISSUER" >> "$GITHUB_ENV"
           echo "ASC_KEY_PATH=$HOME/private_keys/AuthKey_$KEY_ID.p8" >> "$GITHUB_ENV"
+      - name: Restore the encrypted signing certificate
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.knut-signing
+          key: signing-v1-miss-${{ github.run_id }}
+          restore-keys: signing-v1-
       - name: Create the distribution certificate and profile
         run: node scripts/asc-sign.mjs
+      - name: Keep the encrypted signing certificate
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.knut-signing
+          key: signing-v1-${{ github.run_id }}
       - name: Install the app shell
+        working-directory: ${{ env.APP_DIR }}
         run: npm ci && npx cap sync ios
       - name: Archive
-        working-directory: ios/App
+        working-directory: ${{ env.APP_DIR }}/ios/App
         shell: bash
         run: |
           # Manual signing for the App target only (the Pods keep their own settings).
@@ -77,7 +104,7 @@ jobs:
             <key>teamID</key><string>$TEAM_ID</string>
             <key>signingStyle</key><string>manual</string>
             <key>signingCertificate</key><string>$SIGN_IDENTITY</string>
-            <key>provisioningProfiles</key><dict><key>au.com.knut.app</key><string>$PROFILE_NAME</string></dict>
+            <key>provisioningProfiles</key><dict><key>$BUNDLE_ID</key><string>$PROFILE_NAME</string></dict>
             <key>uploadSymbols</key><true/>
             <key>manageAppVersionAndBuildNumber</key><false/>
           </dict></plist>

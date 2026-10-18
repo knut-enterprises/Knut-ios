@@ -7,7 +7,8 @@ import os from 'node:os';
 import {execFileSync} from 'node:child_process';
 
 const {ASC_KEY_ID:kid,ASC_ISSUER_ID:iss,ASC_KEY_PATH:keyPath,RUNNER_TEMP:tmp,GITHUB_ENV:envFile}=process.env;
-const BUNDLE='au.com.knut.app';
+const BUNDLE=process.env.BUNDLE_ID||'au.com.knut.app',APP_NAME=process.env.APP_NAME||'Knut',PASS=process.env.CACHE_PASSPHRASE||'';
+const CACHE=`${os.homedir()}/.knut-signing`;
 const fail=m=>{console.log(`::error::${String(m).slice(0,900).replace(/\n/g,' ')}`);process.exit(1);};
 const b64u=o=>Buffer.from(JSON.stringify(o)).toString('base64url');
 function jwt(){
@@ -26,31 +27,57 @@ const err=r=>JSON.stringify(r.json.errors??r.json).slice(0,700);
 // 1. The app id
 let r=await api('GET',`/v1/bundleIds?filter[identifier]=${BUNDLE}&limit=5`);
 if(r.status!==200)fail(`Apple rejected the API key (HTTP ${r.status}): ${err(r)}`);
-const bundle=r.json.data.find(b=>b.attributes.identifier===BUNDLE);
-if(!bundle)fail(`App id ${BUNDLE} is not registered`);
+let bundle=r.json.data.find(b=>b.attributes.identifier===BUNDLE);
+if(!bundle){
+  const c=await api('POST','/v1/bundleIds',{data:{type:'bundleIds',attributes:{identifier:BUNDLE,name:`${APP_NAME} iOS`,platform:'IOS'}}});
+  if(c.status!==201)fail(`Could not register app id ${BUNDLE}: HTTP ${c.status} ${err(c)}`);
+  bundle=c.json.data;console.log(`::notice::Registered app id ${BUNDLE}`);
+}
 console.log(`::notice::Key accepted by Apple. App id ${bundle.id}`);
 
 // 2. Push notifications capability (ignore "already enabled")
 r=await api('POST','/v1/bundleIdCapabilities',{data:{type:'bundleIdCapabilities',attributes:{capabilityType:'PUSH_NOTIFICATIONS'},relationships:{bundleId:{data:{type:'bundleIds',id:bundle.id}}}}});
 console.log(`::notice::Push capability: HTTP ${r.status}`);
 
-// 3. Distribution certificate
-const dir=`${tmp}/sign`;fs.mkdirSync(dir,{recursive:true});
-sh('/usr/bin/openssl',['genrsa','-out',`${dir}/key.pem`,'2048'],{stdio:'pipe'});
-sh('/usr/bin/openssl',['req','-new','-key',`${dir}/key.pem`,'-out',`${dir}/req.csr`,'-subj','/CN=Knut CI/O=Knut/C=AU'],{stdio:'pipe'});
-const csr=fs.readFileSync(`${dir}/req.csr`,'utf8');
-let cert=null,lastErr='';
-for(const type of ['IOS_DISTRIBUTION','DISTRIBUTION']){
-  r=await api('POST','/v1/certificates',{data:{type:'certificates',attributes:{certificateType:type,csrContent:csr}}});
-  if(r.status===201){cert=r.json.data;break;}
-  lastErr=`${type}: HTTP ${r.status} ${err(r)}`;console.log(`::warning::Certificate ${lastErr}`);
+// 3. Distribution certificate: reuse the one kept (encrypted) in the cache, else create it
+const dir=`${tmp}/sign`;fs.mkdirSync(dir,{recursive:true});fs.mkdirSync(CACHE,{recursive:true});
+const dec=(src,dst)=>sh('/usr/bin/openssl',['enc','-d','-aes-256-cbc','-pbkdf2','-in',src,'-out',dst,'-pass','env:CACHE_PASSPHRASE']);
+const enc=(src,dst)=>sh('/usr/bin/openssl',['enc','-aes-256-cbc','-pbkdf2','-salt','-in',src,'-out',dst,'-pass','env:CACHE_PASSPHRASE']);
+let cert=null;
+if(PASS&&fs.existsSync(`${CACHE}/cert.json`)&&fs.existsSync(`${CACHE}/key.pem.enc`)){
+  try{
+    const saved=JSON.parse(fs.readFileSync(`${CACHE}/cert.json`,'utf8'));
+    const g=await api('GET',`/v1/certificates/${saved.id}`);
+    if(g.status===200&&new Date(g.json.data.attributes.expirationDate)>new Date(Date.now()+7*864e5)){
+      dec(`${CACHE}/key.pem.enc`,`${dir}/key.pem`);
+      fs.copyFileSync(`${CACHE}/cert.cer`,`${dir}/cert.cer`);
+      cert=g.json.data;console.log(`::notice::Reusing the cached distribution certificate ${cert.id}`);
+    }else console.log(`::notice::Cached certificate no longer valid (HTTP ${g.status})`);
+  }catch(e){console.log(`::warning::Cached certificate unusable: ${e.message}`);}
 }
 if(!cert){
-  const l=await api('GET','/v1/certificates?limit=50');
-  const names=(l.json.data??[]).map(c=>`${c.attributes.certificateType}:${c.attributes.name}`).join(', ');
-  fail(`Could not create a distribution certificate. ${lastErr}. Existing: ${names}`);
+  sh('/usr/bin/openssl',['genrsa','-out',`${dir}/key.pem`,'2048'],{stdio:'pipe'});
+  sh('/usr/bin/openssl',['req','-new','-key',`${dir}/key.pem`,'-out',`${dir}/req.csr`,'-subj','/CN=Knut CI/O=Knut/C=AU'],{stdio:'pipe'});
+  const csr=fs.readFileSync(`${dir}/req.csr`,'utf8');
+  let lastErr='';
+  for(const type of ['DISTRIBUTION','IOS_DISTRIBUTION']){
+    r=await api('POST','/v1/certificates',{data:{type:'certificates',attributes:{certificateType:type,csrContent:csr}}});
+    if(r.status===201){cert=r.json.data;break;}
+    lastErr=`${type}: HTTP ${r.status} ${err(r)}`;console.log(`::warning::Certificate ${lastErr}`);
+  }
+  if(!cert){
+    const l=await api('GET','/v1/certificates?limit=50');
+    const names=(l.json.data??[]).map(c=>`${c.id}:${c.attributes.certificateType}:${c.attributes.expirationDate}`).join(', ');
+    fail(`Could not create a distribution certificate. ${lastErr}. Existing: ${names}`);
+  }
+  fs.writeFileSync(`${dir}/cert.cer`,Buffer.from(cert.attributes.certificateContent,'base64'));
+  if(PASS){
+    enc(`${dir}/key.pem`,`${CACHE}/key.pem.enc`);
+    fs.copyFileSync(`${dir}/cert.cer`,`${CACHE}/cert.cer`);
+    fs.writeFileSync(`${CACHE}/cert.json`,JSON.stringify({id:cert.id}));
+  }
+  console.log(`::notice::Created distribution certificate ${cert.id}`);
 }
-fs.writeFileSync(`${dir}/cert.cer`,Buffer.from(cert.attributes.certificateContent,'base64'));
 sh('/usr/bin/openssl',['x509','-inform','der','-in',`${dir}/cert.cer`,'-out',`${dir}/cert.pem`]);
 sh('/usr/bin/openssl',['pkcs12','-export','-inkey',`${dir}/key.pem`,'-in',`${dir}/cert.pem`,'-out',`${dir}/cert.p12`,'-passout','pass:ci']);
 
@@ -67,7 +94,11 @@ const ids=sh('security',['find-identity','-v','-p','codesigning',kc]);
 const m=ids.match(/"((?:Apple|iPhone) Distribution[^"]*)"/);
 if(!m)fail(`Certificate imported but no distribution identity found: ${ids}`);
 
-// 5. App Store provisioning profile
+// 5. App Store provisioning profile (remove this app's earlier CI profiles first)
+{
+  const old=await api('GET',`/v1/bundleIds/${bundle.id}/profiles?limit=50`);
+  for(const pr of old.json.data??[])if(String(pr.attributes.name).startsWith('Knut CI '))await api('DELETE',`/v1/profiles/${pr.id}`);
+}
 const pname=`Knut CI ${Date.now()}`;
 r=await api('POST','/v1/profiles',{data:{type:'profiles',attributes:{name:pname,profileType:'IOS_APP_STORE'},relationships:{bundleId:{data:{type:'bundleIds',id:bundle.id}},certificates:{data:[{type:'certificates',id:cert.id}]}}}});
 if(r.status!==201)fail(`Could not create the provisioning profile: HTTP ${r.status} ${err(r)}`);
