@@ -1,0 +1,24 @@
+{
+  "bundleId": "guru.viba.app",
+  "locale": "en-AU",
+  "name": "VIBA - AI Orchestration",
+  "subtitle": "Your team of AI specialists",
+  "promotionalText": "Plan, build, debug and review with a team of specialist AI models working together. No API keys needed to get started.",
+  "description": "VIBA is a multi-agent AI workspace. Instead of chatting with one assistant, you brief VIBA once and an orchestrator hands the work to specialist AI models for planning, multimodal analysis, building, debugging, review and quality checks.\n\nWHAT YOU CAN DO\n• Describe a project in plain language and watch specialists plan and deliver it step by step\n• Use four included AI specialists straight away, with no personal AI API keys required\n• Optionally connect your own provider keys for extra models or higher limits\n• Keep project memory so VIBA remembers your goals, decisions and preferences\n• Review results, request changes and keep a clear record of what was done\n• Use the same account on the web at viba.guru and on your phone\n\nBUILT FOR REAL WORK\nVIBA is designed for founders, makers and small teams who want more done with less back and forth: drafting and checking code, preparing content, auditing a project, or turning a rough idea into a plan.\n\nYOUR ACCOUNT\nCreate a free account in the app. Plans and billing are managed on viba.guru.\n\nPrivacy policy: https://www.viba.guru/privacy\nTerms: https://www.viba.guru/terms",
+  "keywords": "AI,assistant,agents,automation,productivity,code,planner,workflow,build,chat,orchestration",
+  "supportUrl": "https://www.viba.guru/",
+  "marketingUrl": "https://www.viba.guru/",
+  "privacyPolicyUrl": "https://www.viba.guru/privacy",
+  "copyright": "2026 VIBA",
+  "primaryCategory": "PRODUCTIVITY",
+  "secondaryCategory": "BUSINESS",
+  "review": {
+    "firstName": "VIBA",
+    "lastName": "Support",
+    "phone": "+61 447 794 136",
+    "email": "vibamanager@gmail.com",
+    "demoAccountRequired": false,
+    "notes": "VIBA is a multi-agent AI workspace; the iPhone app shows www.viba.guru in a native app with push notifications and sharing. To try it: open the app, tap Sign up, create a free account with any email address and password, verify the email if asked, then describe a project on the dashboard and tap send. The app does not sell plans, credits or marketplace items; purchases are not offered in the iPhone app. Account deletion is available in Settings > Account."
+  },
+  "ageRating": { "userGeneratedContent": true }
+}
