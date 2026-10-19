@@ -12,6 +12,13 @@ const ok=(r,w)=>{if(r.status>=300){console.log(`::error::${w} HTTP ${r.status} $
 const app=ok(await api('GET',`/v1/apps?filter[bundleId]=${BUNDLE_ID}`),'app').json.data[0];
 const vs=ok(await api('GET',`/v1/apps/${app.id}/appStoreVersions?limit=5`),'versions').json.data;
 console.log('::notice::Versions: '+vs.map(v=>`${v.attributes.versionString}:${v.attributes.appStoreState}`).join(', '));
+if(process.env.MODE==='status'){
+  const subs0=ok(await api('GET',`/v1/apps/${app.id}/reviewSubmissions?limit=10`),'submissions').json.data;
+  console.log('::notice::Submissions: '+subs0.map(x=>x.attributes.state+(x.attributes.submittedDate?'@'+x.attributes.submittedDate:'')).join(', '));
+  const bs0=ok(await api('GET',`/v1/builds?filter[app]=${app.id}&sort=-uploadedDate&limit=5`),'builds').json.data;
+  console.log('::notice::Builds: '+bs0.map(x=>x.attributes.version+':'+x.attributes.processingState).join(', '));
+  process.exit(0);
+}
 // 1. take it out of review
 const subs=ok(await api('GET',`/v1/apps/${app.id}/reviewSubmissions?filter[state]=WAITING_FOR_REVIEW,IN_REVIEW,READY_FOR_REVIEW&limit=20`),'submissions').json.data;
 for(const s of subs){if(s.attributes.state==='WAITING_FOR_REVIEW'||s.attributes.state==='IN_REVIEW'){const c=await api('PATCH',`/v1/reviewSubmissions/${s.id}`,{data:{type:'reviewSubmissions',id:s.id,attributes:{canceled:true}}});console.log(`::notice::Cancel submission ${s.id} (${s.attributes.state}): HTTP ${c.status} ${c.status>=300?err(c):''}`);}}
