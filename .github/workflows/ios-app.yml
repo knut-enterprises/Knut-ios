@@ -15,7 +15,7 @@ on:
         description: What to do
         type: choice
         default: build
-        options: [build, listing, submit]
+        options: [build, listing, submit, swap]
   push:
     branches: [main]
     paths: ["ios/**", "www/**", "package*.json", "capacitor.config.json", "scripts/**", ".github/workflows/ios-app.yml"]
@@ -27,7 +27,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build:
-    if: ${{ inputs.task != 'listing' && inputs.task != 'submit' }}
+    if: ${{ inputs.task != 'listing' && inputs.task != 'submit' && inputs.task != 'swap' }}
     runs-on: macos-latest
     timeout-minutes: 60
     env:
@@ -139,7 +139,7 @@ jobs:
         run: rm -rf "$HOME/private_keys"
 
   listing:
-    if: ${{ inputs.task == 'listing' || inputs.task == 'submit' }}
+    if: ${{ inputs.task == 'listing' || inputs.task == 'submit' || inputs.task == 'swap' }}
     permissions:
       contents: write
       id-token: write
@@ -171,15 +171,23 @@ jobs:
           echo "ASC_ISSUER_ID=$ISSUER" >> "$GITHUB_ENV"
           echo "ASC_KEY_PATH=$HOME/private_keys/AuthKey_$KEY_ID.p8" >> "$GITHUB_ENV"
       - name: Take the screenshots
+        if: ${{ inputs.task != 'swap' }}
         run: |
           npm i --no-save playwright@1.49.1 >/dev/null 2>&1
           npx playwright install --with-deps chromium >/dev/null 2>&1
           node scripts/shots.mjs "$APP_DIR"
       - name: Publish screenshots for the Play Console
+        if: ${{ inputs.task != 'swap' }}
         run: |
           mkdir -p "$RUNNER_TEMP/assets" && cp -r shots shots-play "$RUNNER_TEMP/assets/" && cp -r "$APP_DIR/play" "$RUNNER_TEMP/assets/" 2>/dev/null || true
           cd "$RUNNER_TEMP/assets" && git init -q -b assets && git add -A && git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "screenshots" && git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" assets
+      - name: Swap the build into review
+        if: ${{ inputs.task == 'swap' }}
+        run: |
+          if [ "${{ inputs.app }}" = "viba" ]; then export BUNDLE_ID=guru.viba.app; else export BUNDLE_ID=au.com.knut.app; fi
+          node scripts/asc-swap.mjs
       - name: Fill in the listing
+        if: ${{ inputs.task != 'swap' }}
         env:
           SUBMIT: ${{ inputs.task == 'submit' && '1' || '0' }}
         run: node scripts/asc-listing.mjs
