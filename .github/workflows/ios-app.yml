@@ -140,6 +140,9 @@ jobs:
 
   listing:
     if: ${{ inputs.task == 'listing' || inputs.task == 'submit' }}
+    permissions:
+      contents: write
+      id-token: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -172,6 +175,10 @@ jobs:
           npm i --no-save playwright@1.49.1 >/dev/null 2>&1
           npx playwright install --with-deps chromium >/dev/null 2>&1
           node scripts/shots.mjs "$APP_DIR"
+      - name: Publish screenshots for the Play Console
+        run: |
+          mkdir -p "$RUNNER_TEMP/assets" && cp -r shots shots-play "$RUNNER_TEMP/assets/" && cp -r "$APP_DIR/play" "$RUNNER_TEMP/assets/" 2>/dev/null || true
+          cd "$RUNNER_TEMP/assets" && git init -q -b assets && git add -A && git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "screenshots" && git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" assets
       - name: Fill in the listing
         env:
           SUBMIT: ${{ inputs.task == 'submit' && '1' || '0' }}

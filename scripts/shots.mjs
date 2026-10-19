@@ -16,5 +16,9 @@ for(const s of shots){
   await pg.screenshot({path:`shots/${s.name}.png`});
   await pg.close();
 }
+// Google Play phone screenshots (1080x1920)
+fs.mkdirSync('shots-play',{recursive:true});
+const c2=await b.newContext({viewport:{width:360,height:640},deviceScaleFactor:3,isMobile:true,hasTouch:true});
+for(const s of shots){const pg=await c2.newPage();await pg.goto(`${base}${s.path}?app=android`,{waitUntil:'networkidle',timeout:60000}).catch(()=>{});await pg.waitForTimeout(3000);if(s.scroll)await pg.evaluate(y=>window.scrollTo(0,y*0.8),s.scroll);await pg.waitForTimeout(800);await pg.screenshot({path:`shots-play/${s.name}.png`});await pg.close();}
 await b.close();
 console.log(fs.readdirSync('shots'));
