@@ -17,3 +17,6 @@ Swappys and Virelle Studios are Expo apps: their GitHub jobs run on Linux and bu
 
 ## Automatic builds
 `auto-build.yml` starts a build whenever iPhone app files change on `main` (`ios/`, `viba/`, `www/`, config). Changes to the websites themselves need no build because the apps load the live sites.
+
+## Automatic builds
+`auto-build.yml` starts a build whenever iPhone app files change on `main` (`ios/`, `viba/`, `www/`, config). Changes to the websites themselves need no build because the apps load the live sites.
