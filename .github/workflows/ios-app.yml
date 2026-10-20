@@ -11,6 +11,11 @@ on:
         type: choice
         default: knut
         options: [knut, viba]
+      runner:
+        description: Mac to build on (use macos-15-intel when macos-latest has no capacity)
+        type: choice
+        default: macos-latest
+        options: [macos-latest, macos-15-intel]
       task:
         description: What to do
         type: choice
@@ -28,7 +33,7 @@ concurrency:
 jobs:
   build:
     if: ${{ inputs.task != 'listing' && inputs.task != 'submit' && inputs.task != 'swap' && inputs.task != 'status' }}
-    runs-on: macos-latest
+    runs-on: ${{ inputs.runner || 'macos-latest' }}
     timeout-minutes: 60
     env:
       TEAM_ID: 5AUSX9646V
