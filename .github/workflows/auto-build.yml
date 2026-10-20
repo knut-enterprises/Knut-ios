@@ -1,0 +1,30 @@
+# Starts an iPhone build by itself when the iPhone app files change.
+# Web changes to knut.com.au / viba.guru need no build: the apps load the live sites.
+# Public repo, so this and the Mac builds it starts cost nothing. See BUILDS.md.
+name: Auto iPhone build
+on:
+  push:
+    branches: [main]
+    paths: ["ios/**", "viba/**", "www/**", "capacitor.config.json", "package.json"]
+permissions:
+  actions: write
+  contents: read
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Start the builds that are needed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          changed=$(git diff --name-only HEAD~1 HEAD)
+          echo "$changed"
+          if echo "$changed" | grep -qv '^viba/'; then
+            gh workflow run ios-app.yml -f app=knut -f runner=macos-15-intel -f task=build
+          fi
+          if echo "$changed" | grep -q '^viba/\|^package.json$'; then
+            gh workflow run ios-app.yml -f app=viba -f runner=macos-15-intel -f task=build
+          fi

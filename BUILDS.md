@@ -14,3 +14,6 @@ Actions → Knut iPhone app → Run workflow → pick the app (`knut` or `viba`)
 `ios/App/ci_scripts/ci_post_clone.sh` and `viba/ios/App/ci_scripts/ci_post_clone.sh` are ready for Xcode Cloud,
 but Apple only lets you create an Xcode Cloud product from Xcode on a Mac, so it has not been connected.
 Swappys and Virelle Studios are Expo apps: their GitHub jobs run on Linux and build on Expo's cloud Macs.
+
+## Automatic builds
+`auto-build.yml` starts a build whenever iPhone app files change on `main` (`ios/`, `viba/`, `www/`, config). Changes to the websites themselves need no build because the apps load the live sites.

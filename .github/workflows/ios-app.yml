@@ -3,7 +3,7 @@
 # The App Store Connect API key is fetched from knut.com.au, which hands it
 # only to this workflow on main after checking GitHub's signed identity token.
 name: Knut iPhone app
-# Manual only. This repo is public, so GitHub Mac minutes are free here; don't copy this workflow into a private repo,
+# Started by hand or by auto-build.yml. This repo is public, so GitHub Mac minutes are free here; don't copy this workflow into a private repo,
 # where they bill at 10x. See BUILDS.md.
 on:
   workflow_dispatch:
