@@ -3,6 +3,8 @@
 # The App Store Connect API key is fetched from knut.com.au, which hands it
 # only to this workflow on main after checking GitHub's signed identity token.
 name: Knut iPhone app
+# Manual only: Mac minutes are expensive, so nothing starts this on push. Day-to-day iPhone builds run
+# on Xcode Cloud (see XCODE_CLOUD.md); use this only when Xcode Cloud can't.
 on:
   workflow_dispatch:
     inputs:
@@ -21,9 +23,6 @@ on:
         type: choice
         default: build
         options: [build, listing, submit, swap, status]
-  push:
-    branches: [main]
-    paths: ["ios/**", "www/**", "package*.json", "capacitor.config.json", "scripts/**", ".github/workflows/ios-app.yml"]
 permissions:
   contents: read
   id-token: write
