@@ -4,7 +4,7 @@ This repo is **public**, and GitHub does not bill Actions minutes for public rep
 So the "Knut iPhone app" workflow (`.github/workflows/ios-app.yml`) is free here. Run it by hand:
 Actions → Knut iPhone app → Run workflow → pick the app (`knut` or `viba`).
 
-- It is manual-only: nothing starts it on push.
+- Builds can be started manually, and `auto-build.yml` also dispatches a build on pushes to `main` that change app files. Web-only changes do not require a new iOS build.
 - If `macos-latest` (Apple silicon) has no free machine and the job fails with "not acquired by Runner",
   run it again with the **runner** input set to `macos-15-intel`.
 - Do **not** build iPhone apps from the private `knut` or `viba` repos: Mac minutes there are billed at 10x.
